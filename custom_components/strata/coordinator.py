@@ -67,8 +67,10 @@ def parse_data(status: dict[str, Any], slots: Any, metrics: Any) -> StrataData:
     slot_list = [s for s in slots if isinstance(s, dict)] if isinstance(slots, list) else []
     in_flight = _dig(status, "activity", "in_flight")
     busy: bool | None
-    slots_known = bool(slot_list) and all(
-        isinstance(s.get("is_processing"), bool) for s in slot_list
+    slots_known = (
+        isinstance(slots, list)
+        and bool(slots)
+        and all(isinstance(s, dict) and isinstance(s.get("is_processing"), bool) for s in slots)
     )
     if any(s.get("is_processing") is True for s in slot_list) or (
         isinstance(in_flight, int | float) and in_flight > 0

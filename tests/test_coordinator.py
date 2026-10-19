@@ -167,3 +167,13 @@ def test_parse_partial_slot_evidence_is_unknown() -> None:
     assert parse_data({"activity": {"in_flight": 2}}, [{}], None).busy is True
     assert parse_data({"activity": {"in_flight": 0}}, [{}], None).busy is False
     assert parse_data({"activity": {"in_flight": None}}, [{}], None).busy is None
+
+
+def test_parse_malformed_slot_entries_are_unknown() -> None:
+    """A null or scalar slot entry means that slot's activity is unknown."""
+    from custom_components.strata.coordinator import parse_data
+
+    assert parse_data({}, [{"is_processing": False}, None], None).busy is None
+    assert parse_data({}, [{"is_processing": False}, 5], None).busy is None
+    assert parse_data({}, [{"is_processing": True}, None], None).busy is True
+    assert parse_data({}, "bad", None).busy is None
