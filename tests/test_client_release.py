@@ -30,7 +30,7 @@ async def _big_error(request: web.Request) -> web.StreamResponse:
 
 @pytest.mark.enable_socket
 @pytest.mark.parametrize(("code", "exc"), [(401, StrataAuthError), (500, StrataConnectionError)])
-async def test_error_responses_release_the_connection(code, exc) -> None:
+async def test_error_responses_release_the_connection(socket_enabled, code, exc) -> None:
     """With a one-connection pool, repeated failures must not exhaust it."""
     app = web.Application()
     app.router.add_get("/err/{code}", _big_error)
