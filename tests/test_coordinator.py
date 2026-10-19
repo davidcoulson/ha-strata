@@ -12,7 +12,7 @@ from homeassistant.const import STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import async_fire_time_changed
 
-from custom_components.strata.coordinator import _ratio
+from custom_components.strata.coordinator import _ratio, parse_data
 
 from .conftest import BASE, SLOTS, STATUS, mock_server
 
@@ -262,7 +262,8 @@ async def test_parser_failure_is_offline_not_crash(
 
 def test_ratio_integer_overflow_is_unknown() -> None:
     """An int that fits a float but overflows once scaled gives None, not an exception."""
-    assert _ratio(10**15, 1) == 10**17
+    assert _ratio(10**15, 1) is None  # part above whole is never a percentage
+    assert _ratio(5, 4) is None
     assert _ratio(1e15, 1e-300) is None  # scaled result is infinite
     assert _ratio(10**308, 1) is None  # out of the accepted range
 
@@ -291,3 +292,24 @@ def test_timestamp_out_of_datetime_range_is_unknown() -> None:
     from custom_components.strata.coordinator import _timestamp
 
     assert _timestamp(1e14) is None
+
+
+def test_prompt_tokens_sums_slots() -> None:
+    slots = [{"n_prompt_tokens": 6103}, {"n_prompt_tokens": 800}, {"n_prompt_tokens": "x"}, 5]
+    assert parse_data({}, slots, None).prompt_tokens == 6903
+    assert parse_data({}, [{"n_prompt_tokens": None}], None).prompt_tokens is None
+
+
+async def test_scan_interval_is_clamped(hass: HomeAssistant, aioclient_mock, entry) -> None:
+    mock_server(aioclient_mock)
+    entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(entry, options={"scan_interval": 1})
+    await _setup(hass, entry)
+    assert entry.runtime_data.update_interval.total_seconds() == 5
+
+
+def test_base_url_brackets_ipv6() -> None:
+    from custom_components.strata.const import build_base_url
+
+    assert build_base_url("::1", 8095, False) == "http://[::1]:8095"
+    assert build_base_url("[::1]", 8095, True) == "https://[::1]:8095"

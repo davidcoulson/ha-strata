@@ -7,7 +7,7 @@ from typing import Any
 
 import aiohttp
 
-from .const import REQUEST_TIMEOUT
+from .const import OPTIONAL_TIMEOUT, REQUEST_TIMEOUT
 
 
 class StrataError(Exception):
@@ -31,11 +31,11 @@ class StrataClient:
         self._base_url = base_url.rstrip("/")
         self._headers = {"Authorization": f"Bearer {api_key}"}
 
-    async def get(self, path: str, *, auth: bool = True) -> Any:
+    async def get(self, path: str, *, auth: bool = True, timeout: float = REQUEST_TIMEOUT) -> Any:
         """GET a JSON document from the server."""
         try:
             async with (
-                asyncio.timeout(REQUEST_TIMEOUT),
+                asyncio.timeout(timeout),
                 self._session.get(
                     f"{self._base_url}{path}",
                     headers=self._headers if auth else None,
@@ -61,8 +61,8 @@ class StrataClient:
 
     async def slots(self) -> list[dict[str, Any]]:
         """Fetch /slots."""
-        return await self.get("/slots")
+        return await self.get("/slots", timeout=OPTIONAL_TIMEOUT)
 
     async def metrics(self) -> dict[str, Any]:
         """Fetch /metrics."""
-        return await self.get("/metrics")
+        return await self.get("/metrics", timeout=OPTIONAL_TIMEOUT)

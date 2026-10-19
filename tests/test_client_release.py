@@ -44,3 +44,24 @@ async def test_error_responses_release_the_connection(socket_enabled, code, exc)
                     await asyncio.wait_for(client.get(f"/err/{code}"), 5)
     finally:
         await server.close()
+
+
+async def _slow(request: web.Request) -> web.StreamResponse:
+    await asyncio.sleep(30)
+    return web.json_response({})
+
+
+async def test_optional_endpoint_times_out_fast(socket_enabled, monkeypatch) -> None:
+    """slots/metrics use the short timeout, so a stalled server cannot hold up a poll."""
+    monkeypatch.setattr("custom_components.strata.client.OPTIONAL_TIMEOUT", 0.2)
+    app = web.Application()
+    app.router.add_get("/slots", _slow)
+    server = TestServer(app)
+    await server.start_server()
+    try:
+        async with aiohttp.ClientSession() as session:
+            client = StrataClient(session, str(server.make_url("")), "k")
+            with pytest.raises(StrataConnectionError):
+                await asyncio.wait_for(client.slots(), 5)
+    finally:
+        await server.close()

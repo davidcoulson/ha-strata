@@ -5,6 +5,7 @@ from __future__ import annotations
 from unittest.mock import patch
 
 import aiohttp
+import pytest
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
@@ -146,3 +147,33 @@ async def test_default_session_verifies_certificates(hass: HomeAssistant, aiocli
         )
     assert result["type"] is FlowResultType.CREATE_ENTRY
     getter.assert_called_with(hass, verify_ssl=True)
+
+
+async def test_invalid_host_rejected(hass: HomeAssistant, aioclient_mock) -> None:
+    mock_server(aioclient_mock)
+    for bad in ("http://10.0.0.5", "10.0.0.5/path", "", "a b"):
+        result = await _start(hass)
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {**USER_INPUT, "host": bad}
+        )
+        assert result["errors"] == {"host": "invalid_host"}
+
+
+async def test_port_out_of_range_rejected(hass: HomeAssistant) -> None:
+    import voluptuous as vol
+
+    result = await _start(hass)
+    for bad in (0, 70000):
+        with pytest.raises(vol.Invalid):
+            result["data_schema"]({**USER_INPUT, "port": bad})
+
+
+async def test_host_case_is_one_server(hass: HomeAssistant, aioclient_mock, entry) -> None:
+    mock_server(aioclient_mock)
+    entry.add_to_hass(hass)
+    result = await _start(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {**USER_INPUT, "host": HOST.upper()}
+    )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_configured"

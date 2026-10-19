@@ -62,31 +62,36 @@ class StrataConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             host = user_input[CONF_HOST].strip()
             port = user_input[CONF_PORT]
-            await self.async_set_unique_id(f"{host.lower()}:{port}")
-            self._abort_if_unique_id_configured()
-            try:
-                await _validate(
-                    self.hass,
-                    host,
-                    port,
-                    user_input[CONF_SSL],
-                    user_input[CONF_VERIFY_SSL],
-                    user_input[CONF_API_KEY],
-                )
-            except StrataAuthError:
-                errors["base"] = "invalid_auth"
-            except StrataConnectionError:
-                errors["base"] = "cannot_connect"
+            if not host or any(c in host for c in "/? #@") or "://" in host:
+                errors[CONF_HOST] = "invalid_host"
             else:
-                return self.async_create_entry(
-                    title=f"Strata ({host})", data={**user_input, CONF_HOST: host}
-                )
+                await self.async_set_unique_id(f"{host.lower()}:{port}")
+                self._abort_if_unique_id_configured()
+                try:
+                    await _validate(
+                        self.hass,
+                        host,
+                        port,
+                        user_input[CONF_SSL],
+                        user_input[CONF_VERIFY_SSL],
+                        user_input[CONF_API_KEY],
+                    )
+                except StrataAuthError:
+                    errors["base"] = "invalid_auth"
+                except StrataConnectionError:
+                    errors["base"] = "cannot_connect"
+                else:
+                    return self.async_create_entry(
+                        title=f"Strata ({host})", data={**user_input, CONF_HOST: host}
+                    )
 
         defaults = user_input or {}
         schema = vol.Schema(
             {
                 vol.Required(CONF_HOST, default=defaults.get(CONF_HOST, "")): str,
-                vol.Required(CONF_PORT, default=defaults.get(CONF_PORT, DEFAULT_PORT)): int,
+                vol.Required(CONF_PORT, default=defaults.get(CONF_PORT, DEFAULT_PORT)): vol.All(
+                    int, vol.Range(min=1, max=65535)
+                ),
                 vol.Required(CONF_API_KEY, default=defaults.get(CONF_API_KEY, "")): str,
                 vol.Required(CONF_SSL, default=defaults.get(CONF_SSL, DEFAULT_SSL)): bool,
                 vol.Required(

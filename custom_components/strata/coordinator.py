@@ -14,7 +14,13 @@ from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .client import StrataAuthError, StrataClient, StrataConnectionError, StrataError
-from .const import CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL, DOMAIN
+from .const import (
+    CONF_SCAN_INTERVAL,
+    DEFAULT_SCAN_INTERVAL,
+    DOMAIN,
+    MAX_SCAN_INTERVAL,
+    MIN_SCAN_INTERVAL,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -95,12 +101,18 @@ def _timestamp(value: Any) -> datetime | None:
 
 
 def _ratio(part: Any, whole: Any) -> float | None:
-    """Return part/whole as a percentage, or None."""
+    """Return part/whole as a percentage (never above 100), or None."""
     part, whole = _count(part), _count(whole)
-    if part is None or whole is None or whole <= 0:
+    if part is None or whole is None or whole <= 0 or part > whole:
         return None
     result = 100 * part / whole  # both are bounded, so this cannot raise
     return round(result, 1) if math.isfinite(result) else None
+
+
+def _total(values: Any) -> int | float | None:
+    """Sum the valid counts, or None when there is none."""
+    counts = [n for n in map(_count, values) if n is not None]
+    return sum(counts) if counts else None
 
 
 def parse_data(status: dict[str, Any], slots: Any, metrics: Any) -> StrataData:
@@ -141,7 +153,7 @@ def parse_data(status: dict[str, Any], slots: Any, metrics: Any) -> StrataData:
         kv_type=_text(_dig(metrics, "engine", "kv")),
         engine_version=_text(status.get("engine")) or _text(_dig(metrics, "engine", "version")),
         started=_timestamp(_dig(status, "started")),
-        prompt_tokens=_count(slot_list[0].get("n_prompt_tokens")) if slot_list else None,
+        prompt_tokens=_total(s.get("n_prompt_tokens") for s in slot_list),
         queued=_count(_dig(metrics, "live", "queued")),
         requests_total=_count(_dig(status, "activity", "requests")),
         generation_speed=_count(_dig(timings, "predicted_per_second")),
@@ -167,7 +179,13 @@ class StrataCoordinator(DataUpdateCoordinator[StrataData]):
             config_entry=entry,
             name=DOMAIN,
             update_interval=timedelta(
-                seconds=entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+                seconds=min(
+                    max(
+                        entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
+                        MIN_SCAN_INTERVAL,
+                    ),
+                    MAX_SCAN_INTERVAL,
+                )
             ),
         )
         self.client = client
