@@ -191,3 +191,75 @@ def test_parse_invalid_counts_and_timestamps() -> None:
         assert data.started is None
         assert data.model == "m"
     assert parse_data({"started": 1_700_000_000}, None, None).started is not None
+
+
+def test_parse_overflow_and_malformed_fields() -> None:
+    """Huge ints, odd types and bad booleans never raise and never read as definite state."""
+    from custom_components.strata.coordinator import parse_data
+
+    huge = 10**400
+    data = parse_data(
+        {
+            "activity": {"in_flight": huge, "requests": huge},
+            "last_timings": {
+                "draft_n_accepted": huge,
+                "draft_n": 1,
+                "cache_n": huge,
+                "prompt_n": 1.5,
+            },
+            "loaded": "false",
+            "model": ["x"],
+            "engine": 5,
+            "context": {"native": "big"},
+            "machine": {"gpu": {"temp_c": huge, "util_pct": -3, "used_mib": float("nan")}},
+        },
+        [{"n_prompt_tokens": "7"}],
+        {"engine": {"kv": 3}, "live": {"queued": True}},
+    )
+    assert data.busy is None
+    assert data.loaded is None
+    assert data.model is None
+    assert data.draft_acceptance is None
+    assert data.cache_hit_ratio is None
+    assert data.engine_version is None
+    assert data.context_size is None
+    assert data.kv_type is None
+    assert data.queued is None
+    assert data.prompt_tokens is None
+    assert data.gpu_temperature is None
+    assert data.gpu_utilization is None
+    assert data.gpu_memory_used is None
+    assert data.requests_total is None
+    # Overflowing sum and ratio of finite parts are unknown, not an exception.
+    big = 1.7e308
+    assert (
+        parse_data({"last_timings": {"cache_n": big, "prompt_n": big}}, None, None).cache_hit_ratio
+        is None
+    )
+    assert (
+        parse_data(
+            {"last_timings": {"draft_n_accepted": big, "draft_n": 1e-300}}, None, None
+        ).draft_acceptance
+        is None
+    )
+    assert parse_data({"loaded": True, "model": "m"}, None, None).model == "m"
+
+
+async def test_parser_failure_is_offline_not_crash(
+    hass: HomeAssistant, aioclient_mock, entry, monkeypatch
+) -> None:
+    """If parsing ever raises, the server reads as offline instead of breaking the refresh."""
+    from custom_components.strata import coordinator as coord
+
+    def boom(*_args):
+        raise OverflowError
+
+    mock_server(aioclient_mock)
+    monkeypatch.setattr(coord, "parse_data", boom)
+    await _setup(hass, entry)
+    assert hass.states.get("binary_sensor.strata_10_0_0_5_server_reachable").state == "off"
+
+
+def test_ratio_integer_overflow_is_unknown() -> None:
+    """An int that fits a float but overflows once scaled gives None, not an exception."""
+    assert _ratio(10**308, 1) is None

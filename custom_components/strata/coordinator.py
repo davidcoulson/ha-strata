@@ -54,36 +54,60 @@ def _dig(data: Any, *keys: str) -> Any:
     return data
 
 
-def _count(value: Any) -> float | None:
-    """Return a finite, non-negative number (not a bool), else None."""
+def _num(value: Any) -> int | float | None:
+    """Return a finite number (not a bool), else None. Safe for huge integers."""
     if isinstance(value, bool) or not isinstance(value, int | float):
         return None
-    if not math.isfinite(value) or value < 0:
+    try:
+        if not math.isfinite(value):
+            return None
+    except OverflowError:
         return None
     return value
 
 
+def _count(value: Any) -> int | float | None:
+    """Return a finite, non-negative number, else None."""
+    number = _num(value)
+    if number is None or number < 0:
+        return None
+    return number
+
+
+def _text(value: Any) -> str | None:
+    """Return a non-empty string, else None."""
+    return value if isinstance(value, str) and value else None
+
+
 def _timestamp(value: Any) -> datetime | None:
     """Convert a POSIX timestamp, tolerating out-of-range values."""
-    if isinstance(value, bool) or not isinstance(value, int | float):
+    number = _num(value)
+    if number is None:
         return None
     try:
-        return datetime.fromtimestamp(value, tz=UTC)
+        return datetime.fromtimestamp(number, tz=UTC)
     except (ValueError, OverflowError, OSError):
         return None
 
 
 def _ratio(part: Any, whole: Any) -> float | None:
     """Return part/whole as a percentage, or None."""
-    if not isinstance(part, int | float) or not isinstance(whole, int | float):
+    part, whole = _count(part), _count(whole)
+    if part is None or whole is None or whole <= 0:
         return None
-    if whole <= 0:
+    try:
+        result = 100 * part / whole
+    except OverflowError:
         return None
-    return round(100 * part / whole, 1)
+    return round(result, 1) if math.isfinite(result) else None
 
 
 def parse_data(status: dict[str, Any], slots: Any, metrics: Any) -> StrataData:
-    """Build a StrataData from the raw endpoint payloads."""
+    """Build a StrataData from the raw endpoint payloads.
+
+    Every field is validated on its own: anything malformed becomes None (unknown)
+    and never an idle/unloaded state or an exception that would blank the other fields.
+    """
     slot_list = [s for s in slots if isinstance(s, dict)] if isinstance(slots, list) else []
     in_flight = _count(_dig(status, "activity", "in_flight"))
     busy: bool | None
@@ -100,38 +124,32 @@ def parse_data(status: dict[str, Any], slots: Any, metrics: Any) -> StrataData:
         busy = None  # no explicit activity evidence: unknown, not idle
 
     timings = _dig(status, "last_timings")
-    cache_n = _dig(timings, "cache_n")
-    prompt_n = _dig(timings, "prompt_n")
-    whole = (
-        cache_n + prompt_n
-        if isinstance(cache_n, int | float) and isinstance(prompt_n, int | float)
-        else None
-    )
-    started = _dig(status, "started")
+    cache_n = _count(_dig(timings, "cache_n"))
+    prompt_n = _count(_dig(timings, "prompt_n"))
+    whole = None if cache_n is None or prompt_n is None else float(cache_n) + float(prompt_n)
 
-    prompt_tokens = None
-    if slot_list:
-        prompt_tokens = slot_list[0].get("n_prompt_tokens")
+    loaded = status.get("loaded")
+    loaded = loaded if isinstance(loaded, bool) else None
 
     return StrataData(
         reachable=True,
-        loaded=bool(status["loaded"]) if status.get("loaded") is not None else None,
+        loaded=loaded,
         busy=busy,
-        model=status.get("model") if status.get("loaded") else None,
-        context_size=_dig(status, "context", "native"),
-        kv_type=_dig(metrics, "engine", "kv"),
-        engine_version=status.get("engine") or _dig(metrics, "engine", "version"),
-        started=_timestamp(started),
-        prompt_tokens=prompt_tokens,
-        queued=_dig(metrics, "live", "queued"),
-        requests_total=_dig(status, "activity", "requests"),
-        generation_speed=_dig(timings, "predicted_per_second"),
-        prompt_speed=_dig(timings, "prompt_per_second"),
+        model=_text(status.get("model")) if loaded else None,
+        context_size=_count(_dig(status, "context", "native")),
+        kv_type=_text(_dig(metrics, "engine", "kv")),
+        engine_version=_text(status.get("engine")) or _text(_dig(metrics, "engine", "version")),
+        started=_timestamp(_dig(status, "started")),
+        prompt_tokens=_count(slot_list[0].get("n_prompt_tokens")) if slot_list else None,
+        queued=_count(_dig(metrics, "live", "queued")),
+        requests_total=_count(_dig(status, "activity", "requests")),
+        generation_speed=_count(_dig(timings, "predicted_per_second")),
+        prompt_speed=_count(_dig(timings, "prompt_per_second")),
         cache_hit_ratio=_ratio(cache_n, whole),
         draft_acceptance=_ratio(_dig(timings, "draft_n_accepted"), _dig(timings, "draft_n")),
-        gpu_temperature=_dig(status, "machine", "gpu", "temp_c"),
-        gpu_utilization=_dig(status, "machine", "gpu", "util_pct"),
-        gpu_memory_used=_dig(status, "machine", "gpu", "used_mib"),
+        gpu_temperature=_num(_dig(status, "machine", "gpu", "temp_c")),
+        gpu_utilization=_count(_dig(status, "machine", "gpu", "util_pct")),
+        gpu_memory_used=_count(_dig(status, "machine", "gpu", "used_mib")),
     )
 
 
@@ -176,8 +194,14 @@ class StrataCoordinator(DataUpdateCoordinator[StrataData]):
 
         slots = await self._optional(self.client.slots)
         metrics = await self._optional(self.client.metrics)
+        try:
+            data = parse_data(status, slots, metrics)
+        except (TypeError, ValueError, ArithmeticError):  # defence in depth; fields are validated
+            _LOGGER.debug("Unparseable Strata status payload", exc_info=True)
+            self._note_reachable(False)
+            return StrataData(reachable=False)
         self._note_reachable(True)
-        return parse_data(status, slots, metrics)
+        return data
 
     def _note_reachable(self, reachable: bool) -> None:
         """Log reachability changes once instead of every poll."""
