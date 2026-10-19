@@ -58,7 +58,11 @@ and point its base URL at `http://<host>:8095/v1` with the same API key.
 
 - Load / unload model controls (`/load`, `/unload`, POST).
 - Prometheus counters as long-term statistics.
-- Brand images (`brands` repository submission).
+- Submit the brand images to the Home Assistant `brands` repository (they already ship in `custom_components/strata/brand/`, which current Home Assistant reads directly).
+
+## Credits
+
+The icon is the Strata app icon from [Niko1221/Strata](https://github.com/Niko1221/Strata) (MIT licence). This project is not affiliated with or endorsed by the Strata authors.
 
 ## Development
 
