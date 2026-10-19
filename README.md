@@ -17,7 +17,7 @@ running. Read-only: it only issues `GET` requests.
 
 | Field | Notes |
 | --- | --- |
-| Host | Address of the Strata server, e.g. `10.2.3.62` |
+| Host | Address of the Strata server, e.g. `192.168.1.50` |
 | Port | Default `8095` |
 | API key | Sent as `Authorization: Bearer <key>` |
 | Use HTTPS | Off by default |
