@@ -1,0 +1,103 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to Strata",
+        "description": "Enter the address of your Strata server and its API key.",
+        "data": {
+          "host": "Host",
+          "port": "Port",
+          "api_key": "API key",
+          "ssl": "Use HTTPS",
+          "verify_ssl": "Verify SSL certificate"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Re-authenticate Strata",
+        "description": "The API key for {host} was rejected. Enter the current key.",
+        "data": {
+          "api_key": "API key"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to the Strata server",
+      "invalid_auth": "The API key was rejected",
+      "unknown": "Unexpected error"
+    },
+    "abort": {
+      "already_configured": "This Strata server is already configured",
+      "reauth_successful": "Re-authentication was successful"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Strata options",
+        "data": {
+          "scan_interval": "Poll interval (seconds)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "reachable": {
+        "name": "Server reachable"
+      },
+      "model_loaded": {
+        "name": "Model loaded"
+      },
+      "busy": {
+        "name": "Busy"
+      }
+    },
+    "sensor": {
+      "model": {
+        "name": "Model"
+      },
+      "context_size": {
+        "name": "Context size"
+      },
+      "kv_type": {
+        "name": "KV cache type"
+      },
+      "engine_version": {
+        "name": "Engine version"
+      },
+      "started": {
+        "name": "Started"
+      },
+      "prompt_tokens": {
+        "name": "Prompt tokens in slot"
+      },
+      "queued_requests": {
+        "name": "Queued requests"
+      },
+      "requests_total": {
+        "name": "Requests served"
+      },
+      "generation_speed": {
+        "name": "Generation speed"
+      },
+      "prompt_speed": {
+        "name": "Prompt processing speed"
+      },
+      "cache_hit_ratio": {
+        "name": "Prompt cache hit ratio"
+      },
+      "draft_acceptance": {
+        "name": "Draft acceptance"
+      },
+      "gpu_temperature": {
+        "name": "GPU temperature"
+      },
+      "gpu_utilization": {
+        "name": "GPU utilization"
+      },
+      "gpu_memory_used": {
+        "name": "GPU memory used"
+      }
+    }
+  }
+}
