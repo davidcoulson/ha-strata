@@ -154,3 +154,16 @@ def test_parse_unknown_activity_and_loaded() -> None:
     assert parse_data({}, [{"is_processing": False}], None).busy is False
     assert parse_data({}, [{"is_processing": True}], None).busy is True
     assert parse_data({"loaded": False}, None, None).loaded is False
+
+
+def test_parse_partial_slot_evidence_is_unknown() -> None:
+    """Slots without an explicit is_processing flag are not evidence of idleness."""
+    from custom_components.strata.coordinator import parse_data
+
+    assert parse_data({}, [{}], None).busy is None
+    assert parse_data({}, [{"is_processing": None}], None).busy is None
+    assert parse_data({}, [{"is_processing": False}, {}], None).busy is None
+    assert parse_data({}, [{"is_processing": False}, {"is_processing": True}], None).busy is True
+    assert parse_data({"activity": {"in_flight": 2}}, [{}], None).busy is True
+    assert parse_data({"activity": {"in_flight": 0}}, [{}], None).busy is False
+    assert parse_data({"activity": {"in_flight": None}}, [{}], None).busy is None
