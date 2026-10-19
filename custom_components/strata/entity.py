@@ -6,7 +6,7 @@ from homeassistant.const import CONF_HOST, CONF_PORT
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
+from .const import CONF_SSL, DEFAULT_SSL, DOMAIN, build_base_url
 from .coordinator import StrataCoordinator
 
 
@@ -28,7 +28,11 @@ class StrataEntity(CoordinatorEntity[StrataCoordinator]):
             name=f"Strata ({entry.data[CONF_HOST]})",
             manufacturer="Strata",
             model="Local LLM server",
-            configuration_url=f"http://{entry.data[CONF_HOST]}:{entry.data[CONF_PORT]}",
+            configuration_url=build_base_url(
+                entry.data[CONF_HOST],
+                entry.data[CONF_PORT],
+                entry.data.get(CONF_SSL, DEFAULT_SSL),
+            ),
         )
 
     @property

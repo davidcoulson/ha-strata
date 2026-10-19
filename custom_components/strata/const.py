@@ -16,3 +16,8 @@ MIN_SCAN_INTERVAL = 5
 MAX_SCAN_INTERVAL = 300
 
 REQUEST_TIMEOUT = 10
+
+
+def build_base_url(host: str, port: int, ssl: bool) -> str:
+    """Build the server base URL."""
+    return f"{'https' if ssl else 'http'}://{host}:{port}"

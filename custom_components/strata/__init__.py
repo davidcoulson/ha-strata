@@ -7,15 +7,10 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .client import StrataClient
-from .const import CONF_SSL, CONF_VERIFY_SSL, DEFAULT_SSL, DEFAULT_VERIFY_SSL
+from .const import CONF_SSL, CONF_VERIFY_SSL, DEFAULT_SSL, DEFAULT_VERIFY_SSL, build_base_url
 from .coordinator import StrataConfigEntry, StrataCoordinator
 
 PLATFORMS = [Platform.BINARY_SENSOR, Platform.SENSOR]
-
-
-def build_base_url(host: str, port: int, ssl: bool) -> str:
-    """Build the server base URL."""
-    return f"{'https' if ssl else 'http'}://{host}:{port}"
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: StrataConfigEntry) -> bool:

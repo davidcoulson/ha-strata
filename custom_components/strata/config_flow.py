@@ -12,7 +12,6 @@ from homeassistant.const import CONF_API_KEY, CONF_HOST, CONF_PORT
 from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from . import build_base_url
 from .client import StrataAuthError, StrataClient, StrataConnectionError
 from .const import (
     CONF_SCAN_INTERVAL,
@@ -25,6 +24,7 @@ from .const import (
     DOMAIN,
     MAX_SCAN_INTERVAL,
     MIN_SCAN_INTERVAL,
+    build_base_url,
 )
 from .coordinator import StrataConfigEntry
 

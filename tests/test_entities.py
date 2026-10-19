@@ -60,6 +60,7 @@ async def test_all_entities(hass: HomeAssistant, aioclient_mock, entry) -> None:
     devices = dr.async_entries_for_config_entry(dr.async_get(hass), entry.entry_id)
     assert len(devices) == 1
     assert devices[0].manufacturer == "Strata"
+    assert devices[0].configuration_url == "http://10.0.0.5:8095"
 
 
 async def test_diagnostics_redacts(hass: HomeAssistant, aioclient_mock, entry) -> None:
@@ -82,3 +83,10 @@ async def test_diagnostics_offline(hass: HomeAssistant, aioclient_mock, entry) -
     diag = await async_get_config_entry_diagnostics(hass, entry)
     assert diag["data"]["reachable"] is False
     assert diag["data"]["started"] is None
+
+
+def test_build_base_url_scheme() -> None:
+    from custom_components.strata.const import build_base_url
+
+    assert build_base_url("h", 1, True) == "https://h:1"
+    assert build_base_url("h", 1, False) == "http://h:1"
