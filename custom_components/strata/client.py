@@ -34,11 +34,13 @@ class StrataClient:
     async def get(self, path: str, *, auth: bool = True) -> Any:
         """GET a JSON document from the server."""
         try:
-            async with asyncio.timeout(REQUEST_TIMEOUT):
-                resp = await self._session.get(
+            async with (
+                asyncio.timeout(REQUEST_TIMEOUT),
+                self._session.get(
                     f"{self._base_url}{path}",
                     headers=self._headers if auth else None,
-                )
+                ) as resp,
+            ):
                 if resp.status in (401, 403):
                     raise StrataAuthError(f"{path} returned {resp.status}")
                 if resp.status >= 400:

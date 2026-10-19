@@ -140,3 +140,17 @@ async def test_auth_lost_while_running(
     assert any(
         f["context"]["source"] == "reauth" for f in hass.config_entries.flow.async_progress()
     )
+
+
+def test_parse_unknown_activity_and_loaded() -> None:
+    """Missing evidence stays unknown instead of reading as idle/unloaded."""
+    from custom_components.strata.coordinator import parse_data
+
+    data = parse_data({}, None, None)
+    assert data.reachable is True
+    assert data.busy is None
+    assert data.loaded is None
+    assert parse_data({"activity": {"in_flight": 0}}, None, None).busy is False
+    assert parse_data({}, [{"is_processing": False}], None).busy is False
+    assert parse_data({}, [{"is_processing": True}], None).busy is True
+    assert parse_data({"loaded": False}, None, None).loaded is False

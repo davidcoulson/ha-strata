@@ -66,7 +66,13 @@ def parse_data(status: dict[str, Any], slots: Any, metrics: Any) -> StrataData:
     """Build a StrataData from the raw endpoint payloads."""
     slot_list = [s for s in slots if isinstance(s, dict)] if isinstance(slots, list) else []
     in_flight = _dig(status, "activity", "in_flight")
-    busy = any(s.get("is_processing") for s in slot_list) or bool(in_flight)
+    busy: bool | None
+    if any(s.get("is_processing") for s in slot_list) or in_flight:
+        busy = True
+    elif slot_list or in_flight is not None:
+        busy = False
+    else:
+        busy = None  # no activity evidence at all: unknown, not idle
 
     timings = _dig(status, "last_timings")
     cache_n = _dig(timings, "cache_n")
@@ -84,7 +90,7 @@ def parse_data(status: dict[str, Any], slots: Any, metrics: Any) -> StrataData:
 
     return StrataData(
         reachable=True,
-        loaded=bool(status.get("loaded")),
+        loaded=bool(status["loaded"]) if status.get("loaded") is not None else None,
         busy=busy,
         model=status.get("model") if status.get("loaded") else None,
         context_size=_dig(status, "context", "native"),
