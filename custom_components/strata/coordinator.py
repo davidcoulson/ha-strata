@@ -54,12 +54,16 @@ def _dig(data: Any, *keys: str) -> Any:
     return data
 
 
+MAX_STATE_LENGTH = 255  # Home Assistant rejects longer states
+MAX_NUMBER = 1e15  # far beyond any real count, speed or MiB figure
+
+
 def _num(value: Any) -> int | float | None:
     """Return a finite number (not a bool), else None. Safe for huge integers."""
     if isinstance(value, bool) or not isinstance(value, int | float):
         return None
     try:
-        if not math.isfinite(value):
+        if not math.isfinite(value) or abs(value) > MAX_NUMBER:
             return None
     except OverflowError:
         return None
@@ -76,7 +80,7 @@ def _count(value: Any) -> int | float | None:
 
 def _text(value: Any) -> str | None:
     """Return a non-empty string, else None."""
-    return value if isinstance(value, str) and value else None
+    return value if isinstance(value, str) and 0 < len(value) <= MAX_STATE_LENGTH else None
 
 
 def _timestamp(value: Any) -> datetime | None:
@@ -95,10 +99,7 @@ def _ratio(part: Any, whole: Any) -> float | None:
     part, whole = _count(part), _count(whole)
     if part is None or whole is None or whole <= 0:
         return None
-    try:
-        result = 100 * part / whole
-    except OverflowError:
-        return None
+    result = 100 * part / whole  # both are bounded, so this cannot raise
     return round(result, 1) if math.isfinite(result) else None
 
 

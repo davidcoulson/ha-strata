@@ -262,4 +262,32 @@ async def test_parser_failure_is_offline_not_crash(
 
 def test_ratio_integer_overflow_is_unknown() -> None:
     """An int that fits a float but overflows once scaled gives None, not an exception."""
-    assert _ratio(10**308, 1) is None
+    assert _ratio(10**15, 1) == 10**17
+    assert _ratio(1e15, 1e-300) is None  # scaled result is infinite
+    assert _ratio(10**308, 1) is None  # out of the accepted range
+
+
+def test_parse_values_beyond_state_limits_are_unknown() -> None:
+    """Over-long text and absurdly large numbers read as unknown (HA caps state at 255 chars)."""
+    from custom_components.strata.coordinator import parse_data
+
+    data = parse_data(
+        {"loaded": True, "model": "m" * 256, "activity": {"requests": 10**300}},
+        None,
+        {"engine": {"kv": "k" * 256}},
+    )
+    assert data.model is None
+    assert data.kv_type is None
+    assert data.requests_total is None
+    ok = parse_data(
+        {"loaded": True, "model": "m" * 255, "activity": {"requests": 10**15}}, None, None
+    )
+    assert ok.model == "m" * 255
+    assert ok.requests_total == 10**15
+
+
+def test_timestamp_out_of_datetime_range_is_unknown() -> None:
+    """A number inside the accepted range but beyond datetime's years is still just unknown."""
+    from custom_components.strata.coordinator import _timestamp
+
+    assert _timestamp(1e14) is None
