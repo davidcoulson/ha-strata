@@ -118,3 +118,31 @@ async def test_options(hass: HomeAssistant, aioclient_mock, entry) -> None:
     await hass.async_block_till_done()
     assert entry.options["scan_interval"] == 30
     assert entry.runtime_data.update_interval.total_seconds() == 30
+
+
+async def test_form_defaults_verify_ssl_on(hass: HomeAssistant) -> None:
+    """HTTPS certificates are verified unless the user explicitly opts out."""
+    result = await _start(hass)
+    schema = result["data_schema"].schema
+    key = next(k for k in schema if k == "verify_ssl")
+    assert key.default() is True
+
+
+async def test_default_session_verifies_certificates(hass: HomeAssistant, aioclient_mock) -> None:
+    """Setup asks Home Assistant for a certificate-verifying session when the box is left on."""
+    from homeassistant.helpers.aiohttp_client import async_get_clientsession
+
+    mock_server(aioclient_mock)
+    user_input = USER_INPUT | {"verify_ssl": True}
+    with (
+        patch(
+            "custom_components.strata.config_flow.async_get_clientsession",
+            wraps=async_get_clientsession,
+        ) as getter,
+        patch("custom_components.strata.async_setup_entry", return_value=True),
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            (await _start(hass))["flow_id"], user_input
+        )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    getter.assert_called_with(hass, verify_ssl=True)

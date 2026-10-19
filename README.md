@@ -21,7 +21,7 @@ running. Read-only: it only issues `GET` requests.
 | Port | Default `8095` |
 | API key | Sent as `Authorization: Bearer <key>` |
 | Use HTTPS | Off by default |
-| Verify SSL certificate | Off by default; only matters with HTTPS |
+| Verify SSL certificate | On by default; only matters with HTTPS. Turn off only for a self-signed certificate |
 
 The host is checked against `/health` and the key against `/v1/status` (`/health` does not
 require a key). A changed or wrong key triggers the re-authentication flow. The poll interval
