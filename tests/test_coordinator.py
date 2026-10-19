@@ -177,3 +177,17 @@ def test_parse_malformed_slot_entries_are_unknown() -> None:
     assert parse_data({}, [{"is_processing": False}, 5], None).busy is None
     assert parse_data({}, [{"is_processing": True}, None], None).busy is True
     assert parse_data({}, "bad", None).busy is None
+
+
+def test_parse_invalid_counts_and_timestamps() -> None:
+    """Invalid in-flight counts are unknown; a bad timestamp does not break parsing."""
+    from custom_components.strata.coordinator import parse_data
+
+    for bad in (-1, False, True, float("nan"), float("inf"), "2", None):
+        got = parse_data({"activity": {"in_flight": bad}}, None, None).busy
+        assert got is None, bad
+    for bad in (1e20, 1.7e12 * 1000, -1e20, True, "x"):
+        data = parse_data({"started": bad, "loaded": True, "model": "m"}, None, None)
+        assert data.started is None
+        assert data.model == "m"
+    assert parse_data({"started": 1_700_000_000}, None, None).started is not None

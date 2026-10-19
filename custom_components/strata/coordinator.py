@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -53,6 +54,25 @@ def _dig(data: Any, *keys: str) -> Any:
     return data
 
 
+def _count(value: Any) -> float | None:
+    """Return a finite, non-negative number (not a bool), else None."""
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return None
+    if not math.isfinite(value) or value < 0:
+        return None
+    return value
+
+
+def _timestamp(value: Any) -> datetime | None:
+    """Convert a POSIX timestamp, tolerating out-of-range values."""
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return None
+    try:
+        return datetime.fromtimestamp(value, tz=UTC)
+    except (ValueError, OverflowError, OSError):
+        return None
+
+
 def _ratio(part: Any, whole: Any) -> float | None:
     """Return part/whole as a percentage, or None."""
     if not isinstance(part, int | float) or not isinstance(whole, int | float):
@@ -65,18 +85,16 @@ def _ratio(part: Any, whole: Any) -> float | None:
 def parse_data(status: dict[str, Any], slots: Any, metrics: Any) -> StrataData:
     """Build a StrataData from the raw endpoint payloads."""
     slot_list = [s for s in slots if isinstance(s, dict)] if isinstance(slots, list) else []
-    in_flight = _dig(status, "activity", "in_flight")
+    in_flight = _count(_dig(status, "activity", "in_flight"))
     busy: bool | None
     slots_known = (
         isinstance(slots, list)
         and bool(slots)
         and all(isinstance(s, dict) and isinstance(s.get("is_processing"), bool) for s in slots)
     )
-    if any(s.get("is_processing") is True for s in slot_list) or (
-        isinstance(in_flight, int | float) and in_flight > 0
-    ):
+    if any(s.get("is_processing") is True for s in slot_list) or (in_flight or 0) > 0:
         busy = True
-    elif slots_known or isinstance(in_flight, int | float):
+    elif slots_known or in_flight is not None:
         busy = False
     else:
         busy = None  # no explicit activity evidence: unknown, not idle
@@ -103,9 +121,7 @@ def parse_data(status: dict[str, Any], slots: Any, metrics: Any) -> StrataData:
         context_size=_dig(status, "context", "native"),
         kv_type=_dig(metrics, "engine", "kv"),
         engine_version=status.get("engine") or _dig(metrics, "engine", "version"),
-        started=(
-            datetime.fromtimestamp(started, tz=UTC) if isinstance(started, int | float) else None
-        ),
+        started=_timestamp(started),
         prompt_tokens=prompt_tokens,
         queued=_dig(metrics, "live", "queued"),
         requests_total=_dig(status, "activity", "requests"),
