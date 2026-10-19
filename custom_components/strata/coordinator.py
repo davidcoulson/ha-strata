@@ -67,8 +67,6 @@ def parse_data(status: dict[str, Any], slots: Any, metrics: Any) -> StrataData:
     slot_list = [s for s in slots if isinstance(s, dict)] if isinstance(slots, list) else []
     in_flight = _dig(status, "activity", "in_flight")
     busy = any(s.get("is_processing") for s in slot_list) or bool(in_flight)
-    if _dig(metrics, "live", "state") not in (None, "idle"):
-        busy = True
 
     timings = _dig(status, "last_timings")
     cache_n = _dig(timings, "cache_n")

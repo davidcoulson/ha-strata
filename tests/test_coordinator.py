@@ -110,19 +110,13 @@ async def test_unloaded_and_busy(hass: HomeAssistant, aioclient_mock, entry) -> 
     assert data.cache_hit_ratio is None and data.started is None
 
 
-async def test_busy_via_metrics_and_inflight(hass: HomeAssistant, aioclient_mock, entry) -> None:
+async def test_busy_via_inflight(hass: HomeAssistant, aioclient_mock, entry) -> None:
     mock_server(
         aioclient_mock,
         status={**STATUS, "activity": {"in_flight": 1, "requests": 3}},
         slots=[],
     )
     await _setup(hass, entry)
-    assert entry.runtime_data.data.busy is True
-    mock_server(
-        aioclient_mock,
-        metrics={"live": {"state": "prefill", "queued": 2}},
-    )
-    await entry.runtime_data.async_refresh()
     assert entry.runtime_data.data.busy is True
 
 
