@@ -18,8 +18,10 @@ async def async_get_config_entry_diagnostics(
     hass: HomeAssistant, entry: StrataConfigEntry
 ) -> dict[str, Any]:
     """Return diagnostics for a config entry."""
-    data = asdict(entry.runtime_data.data)
-    if data["started"] is not None:
+    # runtime_data is missing when setup failed or the entry is unloaded
+    coordinator = getattr(entry, "runtime_data", None)
+    data = asdict(coordinator.data) if coordinator and coordinator.data else None
+    if data and data["started"] is not None:
         data["started"] = data["started"].isoformat()
     return {
         "entry": async_redact_data(dict(entry.data), TO_REDACT),
