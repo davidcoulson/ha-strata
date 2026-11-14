@@ -90,3 +90,10 @@ def test_build_base_url_scheme() -> None:
 
     assert build_base_url("h", 1, True) == "https://h:1"
     assert build_base_url("h", 1, False) == "http://h:1"
+
+
+async def test_diagnostics_without_runtime_data(hass: HomeAssistant, entry) -> None:
+    entry.add_to_hass(hass)
+    diag = await async_get_config_entry_diagnostics(hass, entry)
+    assert diag["data"] is None
+    assert diag["entry"]["api_key"] == REDACTED

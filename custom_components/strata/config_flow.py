@@ -128,7 +128,11 @@ class StrataConfigFlow(ConfigFlow, domain=DOMAIN):
             except StrataConnectionError:
                 errors["base"] = "cannot_connect"
             else:
-                return self.async_update_reload_and_abort(
+                # A loaded entry's update listener reloads it when the key changes;
+                # reload here only when no listener will (failed setup, same key).
+                if not (entry.update_listeners and data[CONF_API_KEY] != user_input[CONF_API_KEY]):
+                    self.hass.config_entries.async_schedule_reload(entry.entry_id)
+                return self.async_update_and_abort(
                     entry, data_updates={CONF_API_KEY: user_input[CONF_API_KEY]}
                 )
         return self.async_show_form(
