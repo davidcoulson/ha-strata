@@ -105,6 +105,21 @@ async def test_reauth(hass: HomeAssistant, aioclient_mock, entry) -> None:
     assert entry.data["api_key"] == "new-key"
 
 
+async def test_reauth_loaded_entry_reloads_once(
+    hass: HomeAssistant, aioclient_mock, entry
+) -> None:
+    mock_server(aioclient_mock)
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    result = await entry.start_reauth_flow(hass)
+    reload_fn = hass.config_entries.async_reload
+    with patch.object(hass.config_entries, "async_reload", wraps=reload_fn) as reload:
+        await hass.config_entries.flow.async_configure(result["flow_id"], {"api_key": "new-key"})
+        await hass.async_block_till_done()
+    assert reload.call_count == 1
+
+
 async def test_options(hass: HomeAssistant, aioclient_mock, entry) -> None:
     entry.add_to_hass(hass)
     mock_server(aioclient_mock)
