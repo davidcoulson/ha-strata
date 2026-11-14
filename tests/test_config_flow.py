@@ -105,9 +105,7 @@ async def test_reauth(hass: HomeAssistant, aioclient_mock, entry) -> None:
     assert entry.data["api_key"] == "new-key"
 
 
-async def test_reauth_loaded_entry_reloads_once(
-    hass: HomeAssistant, aioclient_mock, entry
-) -> None:
+async def test_reauth_loaded_entry_reloads_once(hass: HomeAssistant, aioclient_mock, entry) -> None:
     mock_server(aioclient_mock)
     entry.add_to_hass(hass)
     await hass.config_entries.async_setup(entry.entry_id)
