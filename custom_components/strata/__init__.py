@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib
+import importlib.util
 import sys
 
 from homeassistant.const import CONF_API_KEY, CONF_HOST, CONF_PORT, Platform
@@ -10,13 +11,27 @@ from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.service import async_register_admin_service
-from homeassistant.loader import async_get_integration
+from homeassistant.loader import BASE_PRELOAD_PLATFORMS
 
 from .client import StrataClient
 from .const import CONF_SSL, CONF_VERIFY_SSL, DEFAULT_SSL, DEFAULT_VERIFY_SSL, DOMAIN, build_base_url
 from .coordinator import StrataConfigEntry, StrataCoordinator
 
 PLATFORMS = [Platform.BINARY_SENSOR, Platform.SENSOR]
+
+
+def _import_code(package: str) -> None:
+    """Import the new code in the import executor, not the event loop.
+
+    After an unload HA still lists "<domain>.<platform>" as loaded, so it
+    would import the new modules in the event loop (and warn about it);
+    once they are in sys.modules its own import is a cache hit.
+    """
+    module = importlib.import_module(package)
+    # The new module's list, plus what HA preloads with a package (diagnostics, ...).
+    for name in (*module.PLATFORMS, *BASE_PRELOAD_PLATFORMS):
+        if importlib.util.find_spec(f"{package}.{name}") is not None:
+            importlib.import_module(f"{package}.{name}")
 
 
 def _forget_code(hass: HomeAssistant, package: str, domain: str) -> None:
@@ -51,7 +66,7 @@ def _register_reload_code(hass: HomeAssistant) -> None:
                 )
         _forget_code(hass, __name__, DOMAIN)
         try:
-            await (await async_get_integration(hass, DOMAIN)).async_get_component()
+            await hass.async_add_import_executor_job(_import_code, __name__)
         except Exception as err:
             # This handler stays registered, so the action works again once the code is fixed.
             raise HomeAssistantError(
