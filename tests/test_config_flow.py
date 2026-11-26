@@ -105,6 +105,24 @@ async def test_reauth(hass: HomeAssistant, aioclient_mock, entry) -> None:
     assert entry.data["api_key"] == "new-key"
 
 
+async def test_reauth_unloaded_entry_set_up_with_new_key(
+    hass: HomeAssistant, aioclient_mock, entry
+) -> None:
+    mock_server(aioclient_mock)
+    entry.add_to_hass(hass)
+    result = await entry.start_reauth_flow(hass)
+    keys = []
+
+    async def setup(hass, entry):
+        keys.append(entry.data["api_key"])
+        return True
+
+    with patch("custom_components.strata.async_setup_entry", side_effect=setup):
+        await hass.config_entries.flow.async_configure(result["flow_id"], {"api_key": "new-key"})
+        await hass.async_block_till_done()
+    assert keys == ["new-key"]
+
+
 async def test_reauth_loaded_entry_reloads_once(hass: HomeAssistant, aioclient_mock, entry) -> None:
     mock_server(aioclient_mock)
     entry.add_to_hass(hass)

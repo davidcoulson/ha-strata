@@ -130,11 +130,17 @@ class StrataConfigFlow(ConfigFlow, domain=DOMAIN):
             else:
                 # A loaded entry's update listener reloads it when the key changes;
                 # reload here only when no listener will (failed setup, same key).
-                if not (entry.update_listeners and data[CONF_API_KEY] != user_input[CONF_API_KEY]):
-                    self.hass.config_entries.async_schedule_reload(entry.entry_id)
-                return self.async_update_and_abort(
-                    entry, data_updates={CONF_API_KEY: user_input[CONF_API_KEY]}
+                reload = not (
+                    entry.update_listeners and data[CONF_API_KEY] != user_input[CONF_API_KEY]
                 )
+                # async_update_and_abort is newer than the minimum HA in hacs.json.
+                self.hass.config_entries.async_update_entry(
+                    entry, data={**data, CONF_API_KEY: user_input[CONF_API_KEY]}
+                )
+                # Save first: the reload task starts eagerly and would read the old key.
+                if reload:
+                    self.hass.config_entries.async_schedule_reload(entry.entry_id)
+                return self.async_abort(reason="reauth_successful")
         return self.async_show_form(
             step_id="reauth_confirm",
             data_schema=vol.Schema({vol.Required(CONF_API_KEY): str}),
