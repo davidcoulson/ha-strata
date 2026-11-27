@@ -59,3 +59,47 @@ async def test_reload_code_reports_failures(hass, aioclient_mock, entry, target,
         await hass.services.async_call(DOMAIN, "reload_code", {}, blocking=True)
     # the action survives a failed reload, so it can be called again once the code is fixed
     assert hass.services.has_service(DOMAIN, "reload_code")
+
+
+def test_marketplace_restart_cleanup_matches_only_the_running_version(hass, monkeypatch):
+    """Only Marketplace's restart repairs for this version of this integration are dropped."""
+    from homeassistant.helpers import issue_registry as ir
+
+    import custom_components.strata as integration
+
+    monkeypatch.setattr(integration, "_CODE_VERSION", "1.2.3")
+    kept = {
+        ("marketplace", "restart_required_1_tags/1.2.4"),
+        ("marketplace", "restart_required_2_tags/1.2.3"),
+        ("marketplace", "critical_x"),
+        ("strata", "restart_required_x"),
+    }
+    for domain, issue_id, issue_domain in (
+        ("marketplace", "restart_required_1_tags/1.2.3", "strata"),
+        ("marketplace", "restart_required_1_tags/v1.2.3", "strata"),
+        ("marketplace", "restart_required_1_tags/1.2.4", "strata"),
+        ("marketplace", "restart_required_2_tags/1.2.3", "ssh"),
+        ("marketplace", "critical_x", "strata"),
+        ("strata", "restart_required_x", "strata"),
+    ):
+        ir.async_create_issue(
+            hass,
+            domain,
+            issue_id,
+            is_fixable=False,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key="x",
+            issue_domain=issue_domain,
+        )
+    integration._clear_marketplace_restart(hass)
+    assert set(ir.async_get(hass).issues) == kept
+
+
+def test_code_version_is_the_manifest_version():
+    import json
+    from pathlib import Path
+
+    import custom_components.strata as integration
+
+    manifest = Path(integration.__file__).parent / "manifest.json"
+    assert json.loads(manifest.read_text())["version"] == integration._CODE_VERSION
