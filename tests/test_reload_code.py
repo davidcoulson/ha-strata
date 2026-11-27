@@ -59,3 +59,31 @@ async def test_reload_code_reports_failures(hass, aioclient_mock, entry, target,
         await hass.services.async_call(DOMAIN, "reload_code", {}, blocking=True)
     # the action survives a failed reload, so it can be called again once the code is fixed
     assert hass.services.has_service(DOMAIN, "reload_code")
+
+
+def test_reload_clears_only_marketplaces_strata_restart_repairs(hass):
+    from homeassistant.helpers import issue_registry as ir
+
+    from custom_components.strata import _clear_marketplace_restart
+
+    for domain, issue_id, issue_domain in (
+        ("marketplace", "restart_required_1_tags/2026.11.27.2", "strata"),
+        ("marketplace", "restart_required_2_tags/2026.11.26.01", "ssh"),
+        ("marketplace", "critical_x", "strata"),
+        ("strata", "restart_required_x", "strata"),
+    ):
+        ir.async_create_issue(
+            hass,
+            domain,
+            issue_id,
+            is_fixable=False,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key="x",
+            issue_domain=issue_domain,
+        )
+    _clear_marketplace_restart(hass)
+    assert set(ir.async_get(hass).issues) == {
+        ("marketplace", "restart_required_2_tags/2026.11.26.01"),
+        ("marketplace", "critical_x"),
+        ("strata", "restart_required_x"),
+    }
