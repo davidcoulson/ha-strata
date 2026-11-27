@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import importlib
 import importlib.util
+import json
 import sys
+from pathlib import Path
 
 from homeassistant.const import CONF_API_KEY, CONF_HOST, CONF_PORT, Platform
 from homeassistant.core import HomeAssistant, ServiceCall
@@ -15,7 +17,14 @@ from homeassistant.helpers.service import async_register_admin_service
 from homeassistant.loader import BASE_PRELOAD_PLATFORMS
 
 from .client import StrataClient
-from .const import CONF_SSL, CONF_VERIFY_SSL, DEFAULT_SSL, DEFAULT_VERIFY_SSL, DOMAIN, build_base_url
+from .const import (
+    CONF_SSL,
+    CONF_VERIFY_SSL,
+    DEFAULT_SSL,
+    DEFAULT_VERIFY_SSL,
+    DOMAIN,
+    build_base_url,
+)
 from .coordinator import StrataConfigEntry, StrataCoordinator
 
 PLATFORMS = [Platform.BINARY_SENSOR, Platform.SENSOR]
@@ -52,16 +61,22 @@ def _forget_code(hass: HomeAssistant, package: str, domain: str) -> None:
     importlib.invalidate_caches()  # or a file added since the last import may not be found
 
 
+_CODE_VERSION = json.loads((Path(__file__).parent / "manifest.json").read_text())["version"]
+
+
 def _clear_marketplace_restart(hass: HomeAssistant) -> None:
     """Drop Marketplace's "restart to finish the update" repairs for Strata.
 
-    Marketplace cannot see reload_code, so they would stay until a restart.
+    Marketplace cannot see reload_code, so they would stay until a restart. Called from
+    entry setup, it uses the new code's version even when the old handler did the reload;
+    a repair for any other version still waits.
     """
     for (domain, issue_id), issue in list(ir.async_get(hass).issues.items()):
         if (
             domain == "marketplace"
             and issue_id.startswith("restart_required_")
             and issue.issue_domain == DOMAIN
+            and issue_id.rsplit("/", 1)[-1].removeprefix("v") == _CODE_VERSION
         ):
             ir.async_delete_issue(hass, domain, issue_id)
 
@@ -91,7 +106,6 @@ def _register_reload_code(hass: HomeAssistant) -> None:
         failed = [e.title for e in entries if not await hass.config_entries.async_setup(e.entry_id)]
         if failed:
             raise HomeAssistantError(f"{DOMAIN} did not set up again for {failed}; see the log")
-        _clear_marketplace_restart(hass)
 
     async_register_admin_service(hass, DOMAIN, "reload_code", _reload_code)
 
@@ -114,6 +128,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: StrataConfigEntry) -> bo
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
+    _clear_marketplace_restart(hass)
     return True
 
 
